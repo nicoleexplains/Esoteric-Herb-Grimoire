@@ -158,17 +158,19 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({
                       className="w-16 h-16 rounded-md object-cover flex-shrink-0"
                     />
                     <div className="flex-grow min-w-0">
-                      <button
-                        onClick={() => onSelect(herb)}
-                        className="text-left w-full"
-                      >
-                        <h3 className="font-bold text-lg text-green-300 truncate group-hover:text-green-200">
-                          {herb.name}
-                        </h3>
-                        <p className="text-sm text-gray-400 italic truncate">
-                          {herb.scientificName}
-                        </p>
-                      </button>
+                      <Tooltip text={`View details for ${herb.name}`} className="w-full">
+                        <button
+                          onClick={() => onSelect(herb)}
+                          className="text-left w-full"
+                        >
+                          <h3 className="font-bold text-lg text-green-300 truncate group-hover:text-green-200">
+                            {herb.name}
+                          </h3>
+                          <p className="text-sm text-gray-400 italic truncate">
+                            {herb.scientificName}
+                          </p>
+                        </button>
+                      </Tooltip>
                     </div>
                     <Tooltip text={`Remove ${herb.name}`}>
                       <button
