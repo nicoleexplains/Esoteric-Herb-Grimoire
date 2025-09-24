@@ -1,10 +1,12 @@
-
 import React from 'react';
 import type { HerbInfo } from '../types';
+import { HeartIcon } from './icons/HeartIcon';
 
 interface HerbDisplayProps {
   herbData: HerbInfo;
   herbImage: string;
+  isFavorite: boolean;
+  onToggleFavorite: () => void;
 }
 
 const InfoSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -14,9 +16,17 @@ const InfoSection: React.FC<{ title: string; children: React.ReactNode }> = ({ t
   </div>
 );
 
-const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage }) => {
+const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavorite, onToggleFavorite }) => {
   return (
-    <div className="bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl shadow-2xl shadow-purple-900/20 overflow-hidden">
+    <div className="relative bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl shadow-2xl shadow-purple-900/20 overflow-hidden">
+      <button
+        onClick={onToggleFavorite}
+        className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-900/50 text-gray-300 hover:text-red-400 transition-all duration-200 transform hover:scale-110"
+        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+      >
+        <HeartIcon className={`w-6 h-6 ${isFavorite ? 'fill-red-500 stroke-red-500' : 'fill-none'}`} />
+      </button>
+
       <div className="grid grid-cols-1 md:grid-cols-2">
         <div className="p-6 md:p-8">
           <h2 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-300 to-purple-400 mb-1">{herbData.name}</h2>

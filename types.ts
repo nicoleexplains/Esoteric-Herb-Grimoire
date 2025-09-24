@@ -1,4 +1,3 @@
-
 export interface HerbInfo {
   name: string;
   scientificName: string;
@@ -8,4 +7,8 @@ export interface HerbInfo {
   deityAssociation: string[];
   lore: string;
   usage: string;
+}
+
+export interface FavoriteHerb extends HerbInfo {
+  herbImage: string;
 }
