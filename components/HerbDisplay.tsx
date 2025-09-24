@@ -1,6 +1,7 @@
 import React from 'react';
 import type { HerbInfo } from '../types';
 import { HeartIcon } from './icons/HeartIcon';
+import Tooltip from './Tooltip';
 
 interface HerbDisplayProps {
   herbData: HerbInfo;
@@ -19,13 +20,17 @@ const InfoSection: React.FC<{ title: string; children: React.ReactNode }> = ({ t
 const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavorite, onToggleFavorite }) => {
   return (
     <div className="relative bg-gray-800/50 backdrop-blur-sm border border-gray-700 rounded-xl shadow-2xl shadow-purple-900/20 overflow-hidden">
-      <button
-        onClick={onToggleFavorite}
-        className="absolute top-4 right-4 z-10 p-2 rounded-full bg-gray-900/50 text-gray-300 hover:text-red-400 transition-all duration-200 transform hover:scale-110"
-        aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
-      >
-        <HeartIcon className={`w-6 h-6 ${isFavorite ? 'fill-red-500 stroke-red-500' : 'fill-none'}`} />
-      </button>
+      <div className="absolute top-4 right-4 z-10">
+        <Tooltip text={isFavorite ? 'Remove from Grimoire' : 'Add to Grimoire'}>
+          <button
+            onClick={onToggleFavorite}
+            className="p-2 rounded-full bg-gray-900/50 text-gray-300 hover:text-red-400 transition-all duration-200 transform hover:scale-110"
+            aria-label={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          >
+            <HeartIcon className={`w-6 h-6 ${isFavorite ? 'fill-red-500 stroke-red-500' : 'fill-none'}`} />
+          </button>
+        </Tooltip>
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2">
         <div className="p-6 md:p-8">

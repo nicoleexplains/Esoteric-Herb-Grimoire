@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import type { FavoriteHerb } from '../types';
+import { generatePdfReport, copyReportForDocs } from '../services/reportService';
 import { BookIcon } from './icons/BookIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { CloseIcon } from './icons/CloseIcon';
+import { ExportIcon } from './icons/ExportIcon';
+import Tooltip from './Tooltip';
 
 interface FavoritesPanelProps {
   isOpen: boolean;
@@ -19,6 +22,45 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({
   onRemove,
   onClose,
 }) => {
+  const [isExporting, setIsExporting] = useState<boolean>(false);
+  const [exportMessage, setExportMessage] = useState<string>('');
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
+  const exportMenuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
+  const handleExport = async (type: 'pdf' | 'copy') => {
+    setIsExporting(true);
+    setIsExportMenuOpen(false);
+    setExportMessage(type === 'pdf' ? 'Generating PDF...' : 'Copying content...');
+
+    try {
+      if (type === 'pdf') {
+        await generatePdfReport(favorites);
+        setExportMessage('PDF downloaded!');
+      } else {
+        await copyReportForDocs(favorites);
+        setExportMessage('Copied to clipboard!');
+      }
+    } catch (error) {
+      console.error('Export failed:', error);
+      setExportMessage('Export failed. See console for details.');
+    } finally {
+      setIsExporting(false);
+      setTimeout(() => setExportMessage(''), 3000);
+    }
+  };
+
   return (
     <>
       {/* Overlay */}
@@ -45,14 +87,56 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({
                 My Grimoire
               </h2>
             </div>
-            <button
-              onClick={onClose}
-              className="p-1 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-              aria-label="Close favorites panel"
-            >
-              <CloseIcon className="w-6 h-6" />
-            </button>
+            <div className="flex items-center gap-2">
+              <div className="relative" ref={exportMenuRef}>
+                 <Tooltip text="Export Grimoire">
+                    <button
+                      onClick={() => setIsExportMenuOpen(prev => !prev)}
+                      disabled={favorites.length === 0 || isExporting}
+                      className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      aria-label="Export grimoire"
+                    >
+                      <ExportIcon className="w-6 h-6" />
+                    </button>
+                 </Tooltip>
+                {isExportMenuOpen && (
+                  <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
+                    <Tooltip text="Download a PDF of your grimoire." className="block w-full">
+                      <button
+                        onClick={() => handleExport('pdf')}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-md"
+                      >
+                        Download as PDF
+                      </button>
+                    </Tooltip>
+                    <Tooltip text="Copy report for other apps." className="block w-full">
+                      <button
+                        onClick={() => handleExport('copy')}
+                        className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-md"
+                      >
+                        Copy for Docs
+                      </button>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
+              <Tooltip text="Close panel">
+                <button
+                  onClick={onClose}
+                  className="p-1 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
+                  aria-label="Close favorites panel"
+                >
+                  <CloseIcon className="w-6 h-6" />
+                </button>
+              </Tooltip>
+            </div>
           </header>
+          
+          {exportMessage && (
+            <div className="text-center p-2 bg-purple-900/50 text-purple-200 text-sm">
+              {exportMessage}
+            </div>
+          )}
 
           <div className="flex-grow overflow-y-auto p-4">
             {favorites.length === 0 ? (
@@ -86,13 +170,15 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = ({
                         </p>
                       </button>
                     </div>
-                    <button
-                      onClick={() => onRemove(herb.name)}
-                      className="p-2 rounded-full text-gray-500 hover:bg-red-900/50 hover:text-red-400 transition-colors flex-shrink-0"
-                      aria-label={`Remove ${herb.name} from favorites`}
-                    >
-                      <TrashIcon className="w-5 h-5" />
-                    </button>
+                    <Tooltip text={`Remove ${herb.name}`}>
+                      <button
+                        onClick={() => onRemove(herb.name)}
+                        className="p-2 rounded-full text-gray-500 hover:bg-red-900/50 hover:text-red-400 transition-colors flex-shrink-0"
+                        aria-label={`Remove ${herb.name} from favorites`}
+                      >
+                        <TrashIcon className="w-5 h-5" />
+                      </button>
+                    </Tooltip>
                   </li>
                 ))}
               </ul>

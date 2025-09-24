@@ -8,6 +8,7 @@ import ExampleHerbs from './components/ExampleHerbs';
 import FavoritesPanel from './components/FavoritesPanel';
 import { LeafIcon } from './components/icons/LeafIcon';
 import { BookIcon } from './components/icons/BookIcon';
+import Tooltip from './components/Tooltip';
 
 const App: React.FC = () => {
   const [herbData, setHerbData] = useState<HerbInfo | null>(null);
@@ -106,17 +107,21 @@ const App: React.FC = () => {
           <p className="text-lg text-gray-400">
             Uncover the magical properties and arcane lore of plants.
           </p>
-          <button
-            onClick={() => setIsFavoritesPanelOpen(true)}
-            className="absolute top-0 right-0 flex items-center gap-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 border border-gray-600 rounded-full shadow transition duration-300 transform hover:scale-105"
-            aria-label="Open my grimoire"
-          >
-            <BookIcon className="w-5 h-5" />
-            <span className="hidden md:inline">My Grimoire</span>
-            {favorites.length > 0 && (
-                <span className="bg-purple-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{favorites.length}</span>
-            )}
-          </button>
+          <div className="absolute top-0 right-0">
+            <Tooltip text="Open My Grimoire">
+              <button
+                onClick={() => setIsFavoritesPanelOpen(true)}
+                className="flex items-center gap-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 border border-gray-600 rounded-full shadow transition duration-300 transform hover:scale-105"
+                aria-label="Open my grimoire"
+              >
+                <BookIcon className="w-5 h-5" />
+                <span className="hidden md:inline">My Grimoire</span>
+                {favorites.length > 0 && (
+                    <span className="bg-purple-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{favorites.length}</span>
+                )}
+              </button>
+            </Tooltip>
+          </div>
         </header>
 
         <main>

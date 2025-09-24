@@ -1,5 +1,5 @@
-
 import React from 'react';
+import Tooltip from './Tooltip';
 
 interface ExampleHerbsProps {
   onExampleClick: (herb: string) => void;
@@ -13,13 +13,14 @@ const ExampleHerbs: React.FC<ExampleHerbsProps> = ({ onExampleClick }) => {
       <h3 className="text-lg text-gray-400 mb-4">Or try one of these:</h3>
       <div className="flex flex-wrap justify-center gap-3">
         {examples.map((herb) => (
-          <button
-            key={herb}
-            onClick={() => onExampleClick(herb)}
-            className="bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 border border-gray-600 rounded-full shadow transition duration-300 transform hover:scale-105"
-          >
-            {herb}
-          </button>
+          <Tooltip key={herb} text={`Search for ${herb}`}>
+            <button
+              onClick={() => onExampleClick(herb)}
+              className="bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 border border-gray-600 rounded-full shadow transition duration-300 transform hover:scale-105"
+            >
+              {herb}
+            </button>
+          </Tooltip>
         ))}
       </div>
     </div>
