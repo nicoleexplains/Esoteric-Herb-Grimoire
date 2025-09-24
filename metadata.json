@@ -1,0 +1,5 @@
+{
+  "name": "Esoteric Herb Grimoire",
+  "description": "An application that allows users to search for herbs and plants to discover their magical and esoteric significance, powered by Gemini.",
+  "requestFramePermissions": []
+}
