@@ -1,178 +1,201 @@
-// services/reportService.ts
-
 import type { FavoriteHerb } from '../types';
 
-// Since we are using the global scripts from index.html, we declare the libraries
-// to inform TypeScript about their existence on the window object.
-declare const jspdf: any;
-declare const html2canvas: any;
+// Constants for PDF layout, making it easy to adjust
+const PAGE_FORMAT = 'letter';
+const PAGE_ORIENTATION = 'portrait';
+const PAGE_WIDTH_PT = 612; // 8.5 inches * 72 points/inch
+const PAGE_HEIGHT_PT = 792; // 11 inches * 72 points/inch
+const MARGIN_PT = 54; // 0.75 inches
+const CONTENT_WIDTH_PT = PAGE_WIDTH_PT - (MARGIN_PT * 2);
+const CONTENT_HEIGHT_PT = PAGE_HEIGHT_PT - (MARGIN_PT * 2);
+
 
 /**
- * Generates a rich HTML report and a plain text fallback, then copies
- * them to the clipboard using the async Clipboard API.
- * @param favorites - An array of favorite herb objects.
+ * Generates the master CSS for all PDF pages.
+ * Encapsulating styles here makes it easier to maintain the book's aesthetic.
  */
-export async function copyReportForDocs(favorites: FavoriteHerb[]): Promise<void> {
-  if (favorites.length === 0) {
-    return;
-  }
+const getPdfStyles = (): string => `
+  <style>
+    body { margin: 0; font-family: 'Quattrocento', serif; color: #000; font-size: 11pt; line-height: 1.5; background: #fff; }
+    .page-container { box-sizing: border-box; width: ${CONTENT_WIDTH_PT}pt; height: ${CONTENT_HEIGHT_PT}pt; position: relative; display: flex; flex-direction: column; background: #fff; }
+    
+    /* Title & Chapter Pages */
+    .title-page-container, .chapter-page-container { justify-content: center; align-items: center; text-align: center; }
+    .main-title { font-family: 'Cinzel', serif; font-size: 36pt; line-height: 1.3; color: #111827; }
+    .chapter-title { font-family: 'Cinzel', serif; font-size: 32pt; color: #111827; }
 
-  // 1. Generate Plain Text Fallback for maximum compatibility
-  let plainTextReport = "My Esoteric Herb Grimoire\n\n---\n\n";
-  favorites.forEach(herb => {
-    plainTextReport += `## ${herb.name}\n`;
-    plainTextReport += `*${herb.scientificName}*\n\n`;
-    plainTextReport += `Magical Properties: ${herb.magicalProperties.join(', ')}\n`;
-    plainTextReport += `Elemental Association: ${herb.elementalAssociation}\n`;
-    plainTextReport += `Planetary Association: ${herb.planetaryAssociation}\n`;
-    if (herb.deityAssociation && herb.deityAssociation.length > 0) {
-      plainTextReport += `Deity Association: ${herb.deityAssociation.join(', ')}\n`;
-    }
-    plainTextReport += `\nLore:\n${herb.lore}\n`;
-    plainTextReport += `\nRitual Usage:\n${herb.usage}\n\n`;
-    plainTextReport += "---\n\n";
-  });
+    /* Table of Contents */
+    .toc-container { justify-content: center; }
+    .toc-title { font-family: 'Cinzel', serif; font-size: 28pt; margin-bottom: 40px; text-align: center; color: #111827; }
+    .toc-list { list-style: none; padding: 0; margin: 0; width: 100%; max-width: 420px; margin: 0 auto; }
+    .toc-item { display: flex; align-items: baseline; font-size: 15pt; padding: 12px 0; }
+    .toc-item-text { font-family: 'Cinzel', serif; white-space: nowrap; padding-right: 8px; }
+    .toc-item-leader { width: 100%; border-bottom: 2px dotted #9ca3af; }
+    .toc-item-page { white-space: nowrap; padding-left: 8px; font-family: 'Cinzel', serif; }
+    
+    /* Herb Page Content */
+    .herb-page-content { flex-grow: 1; padding-bottom: 25px; }
+    .page-header { font-family: 'Cinzel', serif; font-size: 11pt; text-align: center; margin-bottom: 24px; color: #1f2937; }
+    .main-content { display: flex; gap: 24px; margin-bottom: 18px; }
+    .left-column { flex: 1; }
+    .right-column { width: 170px; flex-shrink: 0; }
+    .herb-name { font-family: 'Cinzel', serif; font-size: 28pt; color: #059669; letter-spacing: 1.5px; margin: 0; line-height: 1.2; }
+    .scientific-name { font-style: italic; font-size: 12pt; color: #374151; margin-bottom: 20px; }
+    .section-title { font-family: 'Cinzel', serif; font-size: 11pt; color: #7c3aed; letter-spacing: 1px; margin-bottom: 8px; border-bottom: 1px solid #e5e7eb; padding-bottom: 4px; }
+    .properties, .associations { font-size: 11pt; line-height: 1.6; }
+    .associations { margin-bottom: 20px; }
+    .herb-image { width: 100%; height: auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); }
+    .full-width-content { margin-top: 16px; text-align: justify; }
+    .full-width-content p { margin-bottom: 12px; }
+    .section-title-full { font-family: 'Cinzel', serif; font-size: 11pt; color: #7c3aed; letter-spacing: 1px; margin-bottom: 8px; }
 
-  // 2. Generate Rich HTML Content for apps like Google Docs
-  const htmlReport = `
-    <div style="font-family: sans-serif; line-height: 1.6; color: #333;">
-      <h1 style="color: #4a0e6c; border-bottom: 2px solid #eee; padding-bottom: 10px;">My Esoteric Herb Grimoire</h1>
-      ${favorites.map(herb => `
-        <div style="margin-top: 2em; padding-bottom: 1em; border-bottom: 1px solid #eee;">
-          <h2 style="font-size: 1.5em; color: #2d6a4f; margin-bottom: 0;">${herb.name}</h2>
-          <p style="margin-top: 0; font-style: italic; color: #666;">${herb.scientificName}</p>
-          <p><strong>Magical Properties:</strong> ${herb.magicalProperties.join(', ')}</p>
-          <p><strong>Associations:</strong> Element of ${herb.elementalAssociation}, Planet of ${herb.planetaryAssociation}</p>
-          ${(herb.deityAssociation && herb.deityAssociation.length > 0) ? `<p><strong>Deities:</strong> ${herb.deityAssociation.join(', ')}</p>` : ''}
-          <h3>Arcane Lore</h3>
-          <p>${herb.lore.replace(/\n/g, '<br>')}</p>
-          <h3>Ritual Usage</h3>
-          <p>${herb.usage.replace(/\n/g, '<br>')}</p>
+    /* Footer */
+    .page-footer { text-align: center; font-size: 10pt; color: #4b5563; font-family: 'Cinzel', serif; height: 25px; line-height: 25px; }
+  </style>
+`;
+
+
+/**
+ * Creates the HTML content for a single herb page.
+ */
+const createHerbPageHtml = (herb: FavoriteHerb): string => {
+  return `
+    <div class="herb-page-content">
+        <header class="page-header">MY ESOTERIC HERB GRIMOIRE</header>
+        <div class="main-content">
+          <div class="left-column">
+              <h2 class="herb-name">${herb.name.toUpperCase()}</h2>
+              <p class="scientific-name">${herb.scientificName}</p>
+              
+              <h3 class="section-title">MAGICAL PROPERTIES</h3>
+              <p class="properties">${herb.magicalProperties.join(', ')}</p>
+              
+              <h3 class="section-title">ASSOCIATIONS</h3>
+              <div class="associations">
+                <p><strong>Element:</strong> ${herb.elementalAssociation} | <strong>Planet:</strong> ${herb.planetaryAssociation}</p>
+                ${herb.deityAssociation && herb.deityAssociation.length > 0 ? `<p><strong>Deities:</strong> ${herb.deityAssociation.join(', ')}</p>` : ''}
+              </div>
+          </div>
+          <div class="right-column">
+              <img src="${herb.image}" alt="${herb.name}" class="herb-image" />
+          </div>
         </div>
-      `).join('')}
+        <div class="full-width-content">
+          <h3 class="section-title-full">ARCANE LORE</h3>
+          <p>${herb.lore}</p>
+          <h3 class="section-title-full">RITUAL USAGE</h3>
+          <p>${herb.usage}</p>
+        </div>
     </div>
   `;
-
-  // 3. Use the Clipboard API to write both formats
-  try {
-    const htmlBlob = new Blob([htmlReport], { type: 'text/html' });
-    const textBlob = new Blob([plainTextReport], { type: 'text/plain' });
-    const clipboardItem = new ClipboardItem({
-      'text/html': htmlBlob,
-      'text/plain': textBlob,
-    });
-    await navigator.clipboard.write([clipboardItem]);
-  } catch (err) {
-    console.error('Failed to copy rich text, falling back to plain text:', err);
-    try {
-      await navigator.clipboard.writeText(plainTextReport);
-    } catch (fallbackErr) {
-      console.error('Failed to copy plain text to clipboard:', fallbackErr);
-      throw new Error('Could not copy report to clipboard.');
-    }
-  }
-}
+};
 
 /**
- * Generates a multi-page PDF report by rendering each herb entry individually
- * to avoid canvas size limitations and ensure all content is included.
- * @param favorites - An array of favorite herb objects.
+ * A helper function to render an HTML string to a canvas and add it to the PDF.
  */
-export async function generatePdfReport(favorites: FavoriteHerb[]): Promise<void> {
-  if (favorites.length === 0) {
-    return;
+const addHtmlToPdf = async (pdf: any, htmlContent: string) => {
+    const html2canvas = (window as any).html2canvas;
+    const container = document.createElement('div');
+    container.style.cssText = `position: absolute; left: -9999px; width: ${CONTENT_WIDTH_PT}pt; background: #fff;`;
+    container.innerHTML = getPdfStyles() + htmlContent;
+    document.body.appendChild(container);
+
+    const canvas = await html2canvas(container.querySelector('.page-container'), {
+      scale: 2,
+      useCORS: true,
+    });
+    
+    document.body.removeChild(container);
+    
+    const imgData = canvas.toDataURL('image/jpeg', 0.95);
+    const imgHeight = (canvas.height * CONTENT_WIDTH_PT) / canvas.width;
+    
+    pdf.addImage(imgData, 'JPEG', MARGIN_PT, MARGIN_PT, CONTENT_WIDTH_PT, imgHeight);
+};
+
+/**
+ * The main export function to generate the complete, multi-page PDF grimoire.
+ */
+export const generatePdfReport = async (favorites: FavoriteHerb[], categories: string[]): Promise<void> => {
+  const { jsPDF } = (window as any).jspdf;
+  if (!jsPDF || !(window as any).html2canvas) {
+    throw new Error("PDF generation libraries (jsPDF, html2canvas) are not loaded.");
   }
 
-  const { jsPDF } = jspdf;
   const pdf = new jsPDF({
-    orientation: 'portrait',
+    orientation: PAGE_ORIENTATION,
     unit: 'pt',
-    format: 'a4',
+    format: PAGE_FORMAT,
   });
 
-  const pdfWidth = pdf.internal.pageSize.getWidth();
-  const pdfHeight = pdf.internal.pageSize.getHeight();
-  const margin = 40;
-  const contentWidth = pdfWidth - margin * 2;
-  let yPosition = margin;
+  // 1. Add Title Page
+  const titlePageHtml = `
+    <div class="page-container title-page-container">
+      <div class="main-title">MY ESOTERIC<br>HERB GRIMOIRE</div>
+    </div>`;
+  await addHtmlToPdf(pdf, titlePageHtml);
 
-  // Add a main title to the first page
-  pdf.setFontSize(24);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('My Esoteric Herb Grimoire', pdfWidth / 2, yPosition, { align: 'center' });
-  yPosition += 40;
+  // 2. Pre-calculate page numbers for the TOC
+  const categorizedFavorites: Record<string, FavoriteHerb[]> = { 'Uncategorized': [] };
+  categories.forEach(cat => categorizedFavorites[cat] = []);
+  favorites.forEach(herb => {
+      const category = herb.category && categories.includes(herb.category) ? herb.category : 'Uncategorized';
+      categorizedFavorites[category].push(herb);
+  });
+  
+  const chapters = Object.entries(categorizedFavorites).filter(([_, herbs]) => herbs.length > 0);
+  let physicalPageCounter = 2; // Page 1 is Title, Page 2 is TOC
+  const tocEntries: { title: string, page: number }[] = [];
+  
+  chapters.forEach(([categoryName, herbs]) => {
+    physicalPageCounter++; // This is the page number for the chapter title page.
+    tocEntries.push({ title: categoryName, page: physicalPageCounter });
+    physicalPageCounter += herbs.length;
+  });
 
-  for (const herb of favorites) {
-    // Create a temporary, off-screen container for each herb to render it
-    const entryContainer = document.createElement('div');
-    entryContainer.style.position = 'absolute';
-    entryContainer.style.left = '-9999px';
-    entryContainer.style.width = '600px'; // A fixed width for consistent rendering
-    entryContainer.style.background = 'white';
-    entryContainer.style.color = 'black';
-    entryContainer.style.padding = '10px';
-    
-    const entryHtml = `
-      <style>
-        body { font-family: Helvetica, Arial, sans-serif; font-size: 10pt; line-height: 1.5; }
-        .herb-entry { border-bottom: 1px solid #ccc; padding-bottom: 15px; margin-bottom: 15px; }
-        img { width: 120px; height: 120px; object-fit: cover; border-radius: 8px; float: right; margin-left: 15px; }
-        h2 { font-size: 1.8em; color: #2d6a4f; margin: 0; }
-        h3 { font-size: 1.1em; color: #4a0e6c; border-bottom: 1px solid #eee; padding-bottom: 5px; margin-top: 15px; }
-        p { margin: 5px 0; }
-        .clearfix::after { content: ""; clear: both; display: table; }
-      </style>
-      <div class="herb-entry clearfix">
-        <img src="${herb.herbImage}" alt="${herb.name}">
-        <h2>${herb.name}</h2>
-        <p><i>${herb.scientificName}</i></p>
-        <h3>Magical Properties</h3>
-        <p>${herb.magicalProperties.join(', ')}</p>
-        <h3>Associations</h3>
-        <p><strong>Element:</strong> ${herb.elementalAssociation} | <strong>Planet:</strong> ${herb.planetaryAssociation}</p>
-        ${(herb.deityAssociation && herb.deityAssociation.length > 0) ? `<p><strong>Deities:</strong> ${herb.deityAssociation.join(', ')}</p>`: ''}
-        <h3>Arcane Lore</h3>
-        <p>${herb.lore.replace(/\n/g, '<br>')}</p>
-        <h3>Ritual Usage</h3>
-        <p>${herb.usage.replace(/\n/g, '<br>')}</p>
+  // 3. Add Table of Contents Page
+  pdf.addPage();
+  const tocListHtml = tocEntries.map(entry => `
+    <li class="toc-item">
+      <span class="toc-item-text">${entry.title.toUpperCase()}</span>
+      <span class="toc-item-leader"></span>
+      <span class="toc-item-page">${entry.page}</span>
+    </li>`).join('');
+  const tocPageHtml = `
+    <div class="page-container toc-container">
+      <div>
+        <div class="toc-title">Table of Contents</div>
+        <ul class="toc-list">${tocListHtml}</ul>
       </div>
-    `;
+    </div>`;
+  await addHtmlToPdf(pdf, tocPageHtml);
 
-    entryContainer.innerHTML = entryHtml;
-    document.body.appendChild(entryContainer);
+  // 4. Add Chapter and Herb Pages with absolute numbering
+  let currentPage = 2;
+  for (const [categoryName, herbs] of chapters) {
+    // Add Chapter Title Page
+    pdf.addPage();
+    currentPage++;
+    const chapterPageHtml = `
+      <div class="page-container chapter-page-container">
+        <div class="chapter-title">${categoryName.toUpperCase()}</div>
+      </div>`;
+    await addHtmlToPdf(pdf, chapterPageHtml);
 
-    try {
-      const canvas = await html2canvas(entryContainer, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-      });
-
-      const imgData = canvas.toDataURL('image/png');
-      const imgHeight = (canvas.height * contentWidth) / canvas.width;
-
-      // Check if the new content fits on the current page. If not, add a new page.
-      if (yPosition + imgHeight > pdfHeight - margin) {
-        pdf.addPage();
-        yPosition = margin; // Reset position to the top margin
-      }
-
-      pdf.addImage(imgData, 'PNG', margin, yPosition, contentWidth, imgHeight, undefined, 'FAST');
-      yPosition += imgHeight + 20; // Move y-position down for the next entry
-
-    } catch (error) {
-      console.error(`Failed to render herb "${herb.name}" for PDF:`, error);
-      // If an entry fails, add an error message to the PDF to not halt the process
-      if (yPosition + 20 > pdfHeight - margin) { pdf.addPage(); yPosition = margin; }
-      pdf.setTextColor(255, 0, 0);
-      pdf.text(`Could not render: ${herb.name}`, margin, yPosition);
-      pdf.setTextColor(0, 0, 0);
-      yPosition += 20;
-    } finally {
-      // Clean up by removing the temporary container
-      document.body.removeChild(entryContainer);
+    // Add Herb Pages for this chapter
+    for (const herb of herbs) {
+      pdf.addPage();
+      currentPage++;
+      const herbPageHtml = `
+        <div class="page-container">
+          ${createHerbPageHtml(herb)}
+          <div class="page-footer">${currentPage}</div>
+        </div>
+      `;
+      await addHtmlToPdf(pdf, herbPageHtml);
     }
   }
-  
-  pdf.save('Esoteric-Herb-Grimoire.pdf');
-}
+
+  // 5. Save the final PDF
+  pdf.save('My_Esoteric_Herb_Grimoire.pdf');
+};

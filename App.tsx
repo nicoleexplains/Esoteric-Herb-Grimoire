@@ -1,165 +1,280 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import type { HerbInfo, FavoriteHerb } from './types';
+import React, { useState, useEffect } from 'react';
 import { getHerbInfo, generateHerbImage } from './services/geminiService';
+import { generatePdfReport } from './services/reportService';
+import type { HerbInfo, FavoriteHerb } from './types';
 import SearchBar from './components/SearchBar';
 import HerbDisplay from './components/HerbDisplay';
 import Loader from './components/Loader';
 import ExampleHerbs from './components/ExampleHerbs';
 import FavoritesPanel from './components/FavoritesPanel';
-import { LeafIcon } from './components/icons/LeafIcon';
+import AboutPage from './components/AboutPage';
+import SearchHistory from './components/SearchHistory';
+import ThemeToggle from './components/ThemeToggle';
 import { BookIcon } from './components/icons/BookIcon';
+import { InfoIcon } from './components/icons/InfoIcon';
 import Tooltip from './components/Tooltip';
 
-const App: React.FC = () => {
-  const [herbData, setHerbData] = useState<HerbInfo | null>(null);
-  const [herbImage, setHerbImage] = useState<string | null>(null);
+function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-  const [favorites, setFavorites] = useState<FavoriteHerb[]>([]);
+  const [herbData, setHerbData] = useState<HerbInfo | null>(null);
+  const [herbImage, setHerbImage] = useState<string | null>(null);
+  const [isExporting, setIsExporting] = useState(false);
+
+  const [favorites, setFavorites] = useState<FavoriteHerb[]>(() => {
+    try {
+        const saved = localStorage.getItem('grimoire-favorites');
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        console.error("Failed to parse favorites from localStorage", e);
+        return [];
+    }
+  });
+
+  const [categories, setCategories] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('grimoire-categories');
+      return saved ? JSON.parse(saved) : ['Healing', 'Protection', 'Divination'];
+    } catch (e) {
+      console.error("Failed to parse categories from localStorage", e);
+      return ['Healing', 'Protection', 'Divination'];
+    }
+  });
+
+  const [searchHistory, setSearchHistory] = useState<string[]>(() => {
+    try {
+        const saved = localStorage.getItem('grimoire-history');
+        return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+        console.error("Failed to parse history from localStorage", e);
+        return [];
+    }
+  });
+
   const [isFavoritesPanelOpen, setIsFavoritesPanelOpen] = useState<boolean>(false);
+  const [isAboutPageOpen, setIsAboutPageOpen] = useState<boolean>(false);
 
-  // Load favorites from localStorage on initial render
-  useEffect(() => {
-    try {
-      const storedFavorites = localStorage.getItem('esoteric-herb-favorites');
-      if (storedFavorites) {
-        setFavorites(JSON.parse(storedFavorites));
-      }
-    } catch (error) {
-      console.error("Failed to load favorites from localStorage:", error);
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+      return 'dark';
     }
-  }, []);
+    return 'light';
+  });
 
-  // Save favorites to localStorage whenever they change
   useEffect(() => {
-    try {
-      localStorage.setItem('esoteric-herb-favorites', JSON.stringify(favorites));
-    } catch (error) {
-      console.error("Failed to save favorites to localStorage:", error);
-    }
+    localStorage.setItem('grimoire-favorites', JSON.stringify(favorites));
   }, [favorites]);
+  
+  useEffect(() => {
+    localStorage.setItem('grimoire-categories', JSON.stringify(categories));
+  }, [categories]);
 
-  const handleSearch = useCallback(async (query: string) => {
-    if (!query || isLoading) return;
+  useEffect(() => {
+    localStorage.setItem('grimoire-history', JSON.stringify(searchHistory));
+  }, [searchHistory]);
 
+  useEffect(() => {
+    if (theme === 'dark') {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
+  };
+
+  const updateSearchHistory = (query: string) => {
+    setSearchHistory(prev => {
+      const lowerCaseQuery = query.toLowerCase();
+      const newHistory = [query, ...prev.filter(item => item.toLowerCase() !== lowerCaseQuery)];
+      return newHistory.slice(0, 10); // Keep last 10
+    });
+  };
+
+  const handleSearch = async (query: string) => {
     setIsLoading(true);
     setError(null);
     setHerbData(null);
     setHerbImage(null);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    updateSearchHistory(query);
 
     try {
-      const [infoResult, imageResult] = await Promise.all([
-        getHerbInfo(query),
-        generateHerbImage(query)
-      ]);
-      
-      setHerbData(infoResult);
-      setHerbImage(imageResult);
+      const infoPromise = getHerbInfo(query);
+      const imagePromise = generateHerbImage(query);
 
-    } catch (err) {
-      console.error(err);
-      setError(err instanceof Error ? err.message : 'An unknown error occurred. Please try again.');
+      const [info, imageUrl] = await Promise.all([infoPromise, imagePromise]);
+      
+      setHerbData(info);
+      setHerbImage(imageUrl);
+    } catch (e: any) {
+      setError(e.message || 'An unknown error occurred.');
     } finally {
       setIsLoading(false);
     }
-  }, [isLoading]);
+  };
+
+  const isFavorite = herbData ? favorites.some(fav => fav.name.toLowerCase() === herbData.name.toLowerCase()) : false;
 
   const toggleFavorite = () => {
     if (!herbData || !herbImage) return;
 
-    const isFavorite = favorites.some(fav => fav.name.toLowerCase() === herbData.name.toLowerCase());
-
     if (isFavorite) {
       setFavorites(prev => prev.filter(fav => fav.name.toLowerCase() !== herbData.name.toLowerCase()));
     } else {
-      const newFavorite: FavoriteHerb = { ...herbData, herbImage };
-      setFavorites(prev => [...prev, newFavorite]);
+      setFavorites(prev => [{ ...herbData, image: herbImage, category: undefined }, ...prev]);
+    }
+  };
+  
+  const handleSelectFavorite = (herb: FavoriteHerb) => {
+      setHerbData(herb);
+      setHerbImage(herb.image);
+      setIsFavoritesPanelOpen(false);
+      setError(null);
+      setIsLoading(false);
+  };
+
+  const handleRemoveFavorite = (herbName: string) => {
+    setFavorites(prev => prev.filter(fav => fav.name !== herbName));
+  };
+  
+  const handleClearFavorites = () => {
+      if (window.confirm("Are you sure you want to clear your entire Grimoire? This cannot be undone.")) {
+        setFavorites([]);
+      }
+  };
+
+  const handleExportFavorites = async () => {
+    if (isExporting) return;
+    if (favorites.length === 0) {
+      alert("Your grimoire is empty. Add some herbs to export.");
+      return;
+    }
+    setIsExporting(true);
+    try {
+      await generatePdfReport(favorites, categories);
+    } catch (err) {
+      console.error("Failed to generate PDF:", err);
+      alert("There was an error generating the PDF. Please try again.");
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const removeFavorite = (herbNameToRemove: string) => {
-    setFavorites(prev => prev.filter(fav => fav.name.toLowerCase() !== herbNameToRemove.toLowerCase()));
+  const handleClearHistory = () => {
+    setSearchHistory([]);
   };
   
-  const showFavorite = (favorite: FavoriteHerb) => {
-    setHerbData(favorite);
-    setHerbImage(favorite.herbImage);
-    setIsFavoritesPanelOpen(false);
+  const handleAddCategory = (categoryName: string) => {
+    const trimmedName = categoryName.trim();
+    if (trimmedName && !categories.find(c => c.toLowerCase() === trimmedName.toLowerCase())) {
+        setCategories(prev => [...prev, trimmedName]);
+    } else {
+        alert("Category name cannot be empty or already exist.");
+    }
+  };
+
+  const handleDeleteCategory = (categoryName: string) => {
+      if (window.confirm(`Are you sure you want to delete the "${categoryName}" category? Herbs in this category will become uncategorized.`)) {
+          setCategories(prev => prev.filter(c => c !== categoryName));
+          setFavorites(prev => prev.map(f => f.category === categoryName ? { ...f, category: undefined } : f));
+      }
+  };
+
+  const handleRenameCategory = (oldName: string, newName: string) => {
+      const trimmedNewName = newName.trim();
+      if (!trimmedNewName || (trimmedNewName.toLowerCase() !== oldName.toLowerCase() && categories.find(c => c.toLowerCase() === trimmedNewName.toLowerCase()))) {
+          alert("Category name cannot be empty or already exist.");
+          return;
+      }
+      setCategories(prev => prev.map(c => c === oldName ? trimmedNewName : c));
+      setFavorites(prev => prev.map(f => f.category === oldName ? { ...f, category: trimmedNewName } : f));
+  };
+
+  const handleAssignCategory = (herbName: string, category: string) => {
+      setFavorites(prev => prev.map(f => f.name === herbName ? { ...f, category: category === 'none' ? undefined : category } : f));
+  };
+
+  const handleGoHome = () => {
+    setHerbData(null);
+    setHerbImage(null);
     setError(null);
     setIsLoading(false);
-    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-  
-  const isCurrentHerbFavorite = herbData ? favorites.some(fav => fav.name.toLowerCase() === herbData.name.toLowerCase()) : false;
 
   return (
-    <div className="min-h-screen bg-gray-900 bg-[radial-gradient(ellipse_80%_80%_at_50%_-20%,rgba(120,119,198,0.3),rgba(255,255,255,0))]">
-      <div className="container mx-auto px-4 py-8 md:py-16 max-w-4xl">
-        <header className="relative text-center mb-10">
-          <div className="flex justify-center items-center gap-4 mb-4">
-            <LeafIcon className="w-12 h-12 text-green-300" />
-            <h1 className="text-4xl md:text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-300 to-purple-400">
-              Esoteric Herb Grimoire
-            </h1>
-            <LeafIcon className="w-12 h-12 text-purple-300" />
-          </div>
-          <p className="text-lg text-gray-400">
-            Uncover the magical properties and arcane lore of plants.
-          </p>
-          <div className="absolute top-0 right-0">
-            <Tooltip text="Open My Grimoire">
-              <button
-                onClick={() => setIsFavoritesPanelOpen(true)}
-                className="flex items-center gap-2 bg-gray-700/50 hover:bg-gray-700 text-gray-300 font-semibold py-2 px-4 border border-gray-600 rounded-full shadow transition duration-300 transform hover:scale-105"
-                aria-label="Open my grimoire"
-              >
-                <BookIcon className="w-5 h-5" />
-                <span className="hidden md:inline">My Grimoire</span>
-                {favorites.length > 0 && (
-                    <span className="bg-purple-500 text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center">{favorites.length}</span>
-                )}
-              </button>
+    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100 font-sans transition-colors duration-500">
+      <div className="absolute top-0 left-0 w-full h-full bg-[url('https://www.transparenttextures.com/patterns/az-subtle.png')] opacity-20 dark:opacity-5"></div>
+      
+      <header className="relative z-20 p-4 grid grid-cols-3 items-center w-full">
+        <div className="w-full">
+            {/* Left Spacer */}
+        </div>
+        <div className="w-full text-center">
+            <Tooltip text="Go to Home Screen">
+                <button onClick={handleGoHome} className="focus:outline-none focus:ring-2 focus:ring-purple-400 rounded-lg -m-2 p-2 transition">
+                    <h1 className="text-3xl md:text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-purple-600 dark:from-green-300 dark:to-purple-400 tracking-wide">
+                        Esoteric Herb Grimoire
+                    </h1>
+                </button>
             </Tooltip>
-          </div>
-        </header>
+        </div>
+        <div className="w-full flex items-center justify-end gap-2">
+            <Tooltip text="My Grimoire">
+                <button onClick={() => setIsFavoritesPanelOpen(true)} className="p-3 rounded-full bg-black/10 dark:bg-gray-800/50 hover:bg-black/20 dark:hover:bg-gray-700 text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 transition-colors" aria-label="Open favorites">
+                    <BookIcon className="w-7 h-7" />
+                </button>
+            </Tooltip>
+            <Tooltip text="About">
+                <button onClick={() => setIsAboutPageOpen(true)} className="p-3 rounded-full bg-black/10 dark:bg-gray-800/50 hover:bg-black/20 dark:hover:bg-gray-700 text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 transition-colors" aria-label="Open about page">
+                    <InfoIcon className="w-7 h-7" />
+                </button>
+            </Tooltip>
+            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+        </div>
+      </header>
 
-        <main>
-          <SearchBar onSearch={handleSearch} isLoading={isLoading} />
-          
-          <div className="mt-12">
-            {isLoading && <Loader />}
-            {error && <div className="text-center text-red-400 p-4 bg-red-900/50 rounded-lg">{error}</div>}
-            
-            {!isLoading && !error && !herbData && <ExampleHerbs onExampleClick={handleSearch} />}
-            
-            {herbData && herbImage && (
-              <div className="animate-fade-in">
-                <HerbDisplay 
-                  herbData={herbData} 
-                  herbImage={herbImage}
-                  isFavorite={isCurrentHerbFavorite}
-                  onToggleFavorite={toggleFavorite}
-                />
-              </div>
-            )}
-          </div>
-        </main>
-        
-        <footer className="text-center mt-16 text-gray-500 text-sm">
-            <p>Powered by Gemini. Information is for esoteric and entertainment purposes only.</p>
-        </footer>
-      </div>
+      <main className="relative z-10 container mx-auto px-4 py-8 md:py-16">
+        <div className="max-w-3xl mx-auto text-center mb-12">
+            <p className="text-lg text-gray-600 dark:text-gray-400">Unveil the hidden magic of the botanical world. Enter a plant's name to consult the grimoire.</p>
+        </div>
 
+        <SearchBar onSearch={handleSearch} isLoading={isLoading} />
+        <SearchHistory history={searchHistory} onHistoryClick={handleSearch} onClearHistory={handleClearHistory} />
+
+        <div className="mt-12">
+          {isLoading && <Loader />}
+          {error && <div className="text-center text-red-500 dark:text-red-400 bg-red-100 dark:bg-red-900/50 p-4 rounded-lg max-w-lg mx-auto">{error}</div>}
+          {herbData && herbImage && !isLoading && (
+            <HerbDisplay 
+                herbData={herbData} 
+                herbImage={herbImage} 
+                isFavorite={isFavorite}
+                onToggleFavorite={toggleFavorite}
+            />
+          )}
+          {!herbData && !isLoading && !error && <ExampleHerbs onExampleClick={handleSearch} />}
+        </div>
+      </main>
+
+      <AboutPage isOpen={isAboutPageOpen} onClose={() => setIsAboutPageOpen(false)} />
       <FavoritesPanel 
         isOpen={isFavoritesPanelOpen}
-        favorites={favorites}
-        onSelect={showFavorite}
-        onRemove={removeFavorite}
         onClose={() => setIsFavoritesPanelOpen(false)}
+        favorites={favorites}
+        categories={categories}
+        onSelectFavorite={handleSelectFavorite}
+        onRemoveFavorite={handleRemoveFavorite}
+        onClearFavorites={handleClearFavorites}
+        onExportFavorites={handleExportFavorites}
+        onAddCategory={handleAddCategory}
+        onDeleteCategory={handleDeleteCategory}
+        onRenameCategory={handleRenameCategory}
+        onAssignCategory={handleAssignCategory}
       />
     </div>
   );
-};
+}
 
 export default App;

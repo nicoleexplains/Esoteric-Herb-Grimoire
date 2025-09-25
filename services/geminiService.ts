@@ -27,6 +27,14 @@ const herbInfoSchema = {
         },
         lore: { type: Type.STRING, description: 'A brief paragraph on its folklore or history.' },
         usage: { type: Type.STRING, description: 'How it is used in magical practices or rituals.' },
+        herbalOil: {
+            type: Type.OBJECT,
+            description: "Information about the herb's essential oil, if commonly used in esoteric practices.",
+            properties: {
+                lore: { type: Type.STRING, description: "A brief paragraph on the magical folklore or history of the herbal oil." },
+                usage: { type: Type.STRING, description: "How the herbal oil is used in magical practices or rituals." }
+            },
+        }
     },
     required: ['name', 'scientificName', 'magicalProperties', 'elementalAssociation', 'planetaryAssociation', 'lore', 'usage']
 };
@@ -35,7 +43,7 @@ export async function getHerbInfo(herbName: string): Promise<HerbInfo> {
   try {
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
-      contents: `You are an expert herbalist specializing in esoteric and magical lore. Provide the magical significance of the herb "${herbName}". Do not include any introductory or concluding phrases, just the JSON object.`,
+      contents: `You are an expert herbalist specializing in esoteric and magical lore. Provide the magical significance of the herb "${herbName}". If this herb is commonly used to produce an essential oil, also provide a brief summary of the magical lore and usage of its oil. Do not include any introductory or concluding phrases, just the JSON object.`,
       config: {
         responseMimeType: 'application/json',
         responseSchema: herbInfoSchema,

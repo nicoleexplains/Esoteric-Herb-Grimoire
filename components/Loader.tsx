@@ -28,8 +28,8 @@ const Loader: React.FC = () => {
 
   return (
     <div className="text-center p-8 flex flex-col items-center justify-center">
-      <LeafIcon className="w-16 h-16 text-green-400 animate-pulse" />
-      <p className="mt-4 text-lg text-purple-300 font-semibold transition-opacity duration-500">{message}</p>
+      <LeafIcon className="w-16 h-16 text-green-500 dark:text-green-400 animate-pulse" />
+      <p className="mt-4 text-lg text-purple-700 dark:text-purple-300 font-semibold transition-opacity duration-500">{message}</p>
     </div>
   );
 };

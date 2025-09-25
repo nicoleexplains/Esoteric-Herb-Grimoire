@@ -25,7 +25,7 @@ const SearchBar: React.FC<SearchBarProps> = ({ onSearch, isLoading }) => {
         onChange={(e) => setQuery(e.target.value)}
         placeholder="Enter an herb or plant, e.g., Lavender..."
         disabled={isLoading}
-        className="flex-grow bg-gray-800 border border-gray-600 rounded-md py-3 px-4 text-gray-200 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-300 disabled:opacity-50"
+        className="flex-grow bg-gray-200 dark:bg-gray-800 border border-gray-400 dark:border-gray-600 rounded-md py-3 px-4 text-gray-800 dark:text-gray-200 placeholder-gray-500 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition duration-300 disabled:opacity-50"
       />
       <Tooltip text="Search">
         <button

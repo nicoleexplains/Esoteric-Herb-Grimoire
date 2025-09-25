@@ -1,193 +1,218 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useMemo } from 'react';
 import type { FavoriteHerb } from '../types';
-import { generatePdfReport, copyReportForDocs } from '../services/reportService';
 import { BookIcon } from './icons/BookIcon';
 import { TrashIcon } from './icons/TrashIcon';
 import { CloseIcon } from './icons/CloseIcon';
 import { ExportIcon } from './icons/ExportIcon';
+import { PlusIcon } from './icons/PlusIcon';
+import { EditIcon } from './icons/EditIcon';
+import { CheckIcon } from './icons/CheckIcon';
+import { ChevronDownIcon } from './icons/ChevronDownIcon';
 import Tooltip from './Tooltip';
 
 interface FavoritesPanelProps {
-  isOpen: boolean;
   favorites: FavoriteHerb[];
-  onSelect: (herb: FavoriteHerb) => void;
-  onRemove: (herbName: string) => void;
+  categories: string[];
+  isOpen: boolean;
   onClose: () => void;
+  onSelectFavorite: (herb: FavoriteHerb) => void;
+  onRemoveFavorite: (herbName: string) => void;
+  onClearFavorites: () => void;
+  onExportFavorites: () => void;
+  onAddCategory: (name: string) => void;
+  onDeleteCategory: (name: string) => void;
+  onRenameCategory: (oldName: string, newName: string) => void;
+  onAssignCategory: (herbName: string, category: string) => void;
 }
 
-const FavoritesPanel: React.FC<FavoritesPanelProps> = ({
-  isOpen,
-  favorites,
-  onSelect,
-  onRemove,
-  onClose,
-}) => {
-  const [isExporting, setIsExporting] = useState<boolean>(false);
-  const [exportMessage, setExportMessage] = useState<string>('');
-  const [isExportMenuOpen, setIsExportMenuOpen] = useState<boolean>(false);
-  const exportMenuRef = useRef<HTMLDivElement>(null);
+const CategoryHeader: React.FC<{
+  categoryName: string;
+  count: number;
+  onDelete: () => void;
+  onRename: (newName: string) => void;
+}> = ({ categoryName, count, onDelete, onRename }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [name, setName] = useState(categoryName);
 
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (exportMenuRef.current && !exportMenuRef.current.contains(event.target as Node)) {
-        setIsExportMenuOpen(false);
-      }
+    const handleRename = () => {
+        if (name.trim() && name.trim() !== categoryName) {
+            onRename(name.trim());
+        }
+        setIsEditing(false);
     };
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, []);
 
-  const handleExport = async (type: 'pdf' | 'copy') => {
-    setIsExporting(true);
-    setIsExportMenuOpen(false);
-    setExportMessage(type === 'pdf' ? 'Generating PDF...' : 'Copying content...');
+    return (
+        <div className="flex justify-between items-center w-full text-left">
+            {isEditing ? (
+                <div className="flex-grow flex items-center gap-2">
+                    <input
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        onKeyDown={(e) => e.key === 'Enter' && handleRename()}
+                        onBlur={handleRename}
+                        className="flex-grow bg-gray-200 dark:bg-gray-900/80 border border-purple-400 dark:border-purple-600 rounded-md py-1 px-2 text-sm"
+                        autoFocus
+                    />
+                    <button onClick={handleRename} className="p-1 text-green-500 hover:text-green-400">
+                        <CheckIcon className="w-5 h-5" />
+                    </button>
+                </div>
+            ) : (
+                <div className="flex-grow flex items-center gap-2 text-gray-800 dark:text-gray-200">
+                    <span className="font-bold">{categoryName}</span>
+                    <span className="text-sm text-gray-500 dark:text-gray-400">({count})</span>
+                </div>
+            )}
+            {!isEditing && categoryName !== 'Uncategorized' && (
+                <div className="flex items-center">
+                    <Tooltip text="Rename">
+                        <button onClick={() => setIsEditing(true)} className="p-1 text-gray-400 hover:text-purple-500 dark:hover:text-purple-300">
+                            <EditIcon className="w-4 h-4" />
+                        </button>
+                    </Tooltip>
+                    <Tooltip text="Delete">
+                        <button onClick={onDelete} className="p-1 text-gray-400 hover:text-red-500 dark:hover:text-red-400">
+                            <TrashIcon className="w-4 h-4" />
+                        </button>
+                    </Tooltip>
+                </div>
+            )}
+        </div>
+    );
+};
 
-    try {
-      if (type === 'pdf') {
-        await generatePdfReport(favorites);
-        setExportMessage('PDF downloaded!');
-      } else {
-        await copyReportForDocs(favorites);
-        setExportMessage('Copied to clipboard!');
-      }
-    } catch (error) {
-      console.error('Export failed:', error);
-      setExportMessage('Export failed. See console for details.');
-    } finally {
-      setIsExporting(false);
-      setTimeout(() => setExportMessage(''), 3000);
+const FavoritesPanel: React.FC<FavoritesPanelProps> = (props) => {
+  const { favorites, categories, isOpen, onClose, onSelectFavorite, onRemoveFavorite, onClearFavorites, onExportFavorites, onAddCategory, onDeleteCategory, onRenameCategory, onAssignCategory } = props;
+  
+  const [newCategory, setNewCategory] = useState('');
+  const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
+
+  const handleAddCategory = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newCategory.trim()) {
+      onAddCategory(newCategory.trim());
+      setNewCategory('');
     }
   };
 
+  const toggleCategory = (categoryName: string) => {
+    setCollapsedCategories(prev => ({ ...prev, [categoryName]: !prev[categoryName] }));
+  };
+  
+  const categorizedFavorites = useMemo(() => {
+    const grouped: Record<string, FavoriteHerb[]> = { 'Uncategorized': [] };
+    categories.forEach(cat => grouped[cat] = []);
+
+    favorites.forEach(herb => {
+        if (herb.category && categories.includes(herb.category)) {
+            grouped[herb.category].push(herb);
+        } else {
+            grouped['Uncategorized'].push(herb);
+        }
+    });
+
+    return Object.entries(grouped).filter(([_, herbs]) => herbs.length > 0);
+  }, [favorites, categories]);
+
   return (
     <>
-      {/* Overlay */}
       <div
-        className={`fixed inset-0 bg-black/60 z-40 transition-opacity duration-300 ${
-          isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'
-        }`}
-        onClick={onClose}
-      />
-      {/* Panel */}
-      <aside
-        className={`fixed top-0 right-0 h-full w-full max-w-md bg-gray-900 border-l border-gray-700 shadow-2xl z-50 transform transition-transform duration-300 ease-in-out ${
-          isOpen ? 'translate-x-0' : 'translate-x-full'
-        }`}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="favorites-heading"
-      >
+        className={`fixed inset-0 bg-black/70 z-30 transition-opacity duration-300 ${isOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}
+        onClick={onClose} aria-hidden="true" />
+      <div
+        className={`fixed top-0 right-0 h-full w-full max-w-md bg-white dark:bg-gray-800 shadow-2xl z-40 transform transition-transform duration-300 ease-in-out ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}
+        role="dialog" aria-modal="true" aria-labelledby="favorites-heading">
         <div className="flex flex-col h-full">
-          <header className="flex items-center justify-between p-4 border-b border-gray-700">
-            <div className="flex items-center gap-3">
-              <BookIcon className="w-6 h-6 text-purple-300" />
-              <h2 id="favorites-heading" className="text-xl font-bold text-gray-200">
-                My Grimoire
-              </h2>
-            </div>
-            <div className="flex items-center gap-2">
-              <div className="relative" ref={exportMenuRef}>
-                 <Tooltip text="Export Grimoire">
-                    <button
-                      onClick={() => setIsExportMenuOpen(prev => !prev)}
-                      disabled={favorites.length === 0 || isExporting}
-                      className="p-2 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                      aria-label="Export grimoire"
-                    >
-                      <ExportIcon className="w-6 h-6" />
-                    </button>
-                 </Tooltip>
-                {isExportMenuOpen && (
-                  <div className="absolute right-0 mt-2 w-48 bg-gray-800 border border-gray-700 rounded-md shadow-lg z-10">
-                    <Tooltip text="Download a PDF of your grimoire." className="block w-full">
-                      <button
-                        onClick={() => handleExport('pdf')}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-t-md"
-                      >
-                        Download as PDF
-                      </button>
-                    </Tooltip>
-                    <Tooltip text="Copy report for other apps." className="block w-full">
-                      <button
-                        onClick={() => handleExport('copy')}
-                        className="block w-full text-left px-4 py-2 text-sm text-gray-300 hover:bg-gray-700 rounded-b-md"
-                      >
-                        Copy for Docs
-                      </button>
-                    </Tooltip>
-                  </div>
-                )}
-              </div>
-              <Tooltip text="Close panel">
-                <button
-                  onClick={onClose}
-                  className="p-1 rounded-full text-gray-400 hover:bg-gray-700 hover:text-white transition-colors"
-                  aria-label="Close favorites panel"
-                >
-                  <CloseIcon className="w-6 h-6" />
-                </button>
-              </Tooltip>
-            </div>
+          <header className="flex items-center justify-between p-4 border-b border-gray-200 dark:border-gray-700">
+            <h2 id="favorites-heading" className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
+              <BookIcon className="w-6 h-6" /> My Grimoire
+            </h2>
+            <Tooltip text="Close">
+              <button onClick={onClose} className="p-1 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" aria-label="Close panel">
+                <CloseIcon className="w-6 h-6" />
+              </button>
+            </Tooltip>
           </header>
-          
-          {exportMessage && (
-            <div className="text-center p-2 bg-purple-900/50 text-purple-200 text-sm">
-              {exportMessage}
-            </div>
-          )}
 
-          <div className="flex-grow overflow-y-auto p-4">
+          <div className="p-4 border-b border-gray-200 dark:border-gray-700">
+            <h3 className="text-sm font-semibold text-gray-600 dark:text-gray-400 mb-2">Add New Category</h3>
+            <form onSubmit={handleAddCategory} className="flex gap-2">
+              <input type="text" value={newCategory} onChange={e => setNewCategory(e.target.value)} placeholder="e.g., Protection Spells" className="flex-grow bg-gray-100 dark:bg-gray-700 border border-gray-300 dark:border-gray-600 rounded-md py-2 px-3 text-sm" />
+              <Tooltip text="Add Category">
+                <button type="submit" className="p-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 transition-colors"><PlusIcon className="w-5 h-5"/></button>
+              </Tooltip>
+            </form>
+          </div>
+
+          <div className="flex-grow overflow-y-auto p-4 space-y-2">
             {favorites.length === 0 ? (
-              <div className="text-center text-gray-400 h-full flex flex-col justify-center items-center">
-                <BookIcon className="w-16 h-16 text-gray-600 mb-4" />
-                <p className="font-semibold">Your grimoire is empty.</p>
-                <p className="text-sm">Saved herbs will appear here.</p>
+              <div className="text-center text-gray-500 dark:text-gray-400 py-10">
+                <p>Your grimoire is empty.</p>
+                <p className="text-sm mt-1">Add herbs by clicking the heart icon.</p>
               </div>
             ) : (
-              <ul className="space-y-3">
-                {favorites.map((herb) => (
-                  <li
-                    key={herb.name}
-                    className="group bg-gray-800 rounded-lg p-3 flex items-center gap-4 transition-all duration-200 hover:bg-gray-700/80 hover:shadow-lg"
-                  >
-                    <img
-                      src={herb.herbImage}
-                      alt={herb.name}
-                      className="w-16 h-16 rounded-md object-cover flex-shrink-0"
-                    />
-                    <div className="flex-grow min-w-0">
-                      <Tooltip text={`View details for ${herb.name}`} className="w-full">
-                        <button
-                          onClick={() => onSelect(herb)}
-                          className="text-left w-full"
-                        >
-                          <h3 className="font-bold text-lg text-green-300 truncate group-hover:text-green-200">
-                            {herb.name}
-                          </h3>
-                          <p className="text-sm text-gray-400 italic truncate">
-                            {herb.scientificName}
-                          </p>
+                categorizedFavorites.map(([categoryName, herbs]) => (
+                    <div key={categoryName} className="bg-gray-100 dark:bg-gray-900/50 rounded-lg">
+                        <button onClick={() => toggleCategory(categoryName)} className="w-full flex justify-between items-center p-2 bg-gray-200/50 dark:bg-gray-800/60 rounded-t-lg">
+                            <CategoryHeader 
+                                categoryName={categoryName} 
+                                count={herbs.length}
+                                onDelete={() => onDeleteCategory(categoryName)}
+                                onRename={(newName) => onRenameCategory(categoryName, newName)}
+                            />
+                             <ChevronDownIcon className={`w-5 h-5 text-gray-500 dark:text-gray-400 transform transition-transform duration-200 ${collapsedCategories[categoryName] ? '' : 'rotate-180'}`} />
                         </button>
-                      </Tooltip>
+                        {!collapsedCategories[categoryName] && (
+                             <div className="p-2 space-y-2">
+                                {herbs.map(herb => (
+                                    <div key={herb.name} className="flex items-center gap-2 p-2 rounded-lg group bg-white dark:bg-gray-800">
+                                      <div className="flex-grow cursor-pointer flex items-center gap-2" onClick={() => onSelectFavorite(herb)}>
+                                        <img src={herb.image} alt={herb.name} className="w-12 h-12 object-cover rounded-md flex-shrink-0" />
+                                        <div className="flex-grow">
+                                          <p className="font-semibold text-sm text-gray-800 dark:text-gray-200 group-hover:text-purple-600 dark:group-hover:text-purple-300">{herb.name}</p>
+                                          <p className="text-xs text-gray-500 dark:text-gray-400 italic">{herb.scientificName}</p>
+                                        </div>
+                                      </div>
+                                      <div className="flex items-center gap-1">
+                                         <select 
+                                            value={herb.category || 'none'}
+                                            onChange={(e) => onAssignCategory(herb.name, e.target.value)}
+                                            onClick={(e) => e.stopPropagation()} // Prevent card click
+                                            className="text-xs bg-gray-200 dark:bg-gray-700 border-gray-300 dark:border-gray-600 rounded-md py-1 pl-2 pr-6 appearance-none"
+                                         >
+                                            <option value="none">Uncategorized</option>
+                                            {categories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+                                         </select>
+                                        <Tooltip text="Remove">
+                                          <button onClick={() => onRemoveFavorite(herb.name)} className="p-2 rounded-full text-gray-400 hover:text-red-500" aria-label={`Remove ${herb.name}`}>
+                                            <TrashIcon className="w-4 h-4" />
+                                          </button>
+                                        </Tooltip>
+                                      </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
                     </div>
-                    <Tooltip text={`Remove ${herb.name}`}>
-                      <button
-                        onClick={() => onRemove(herb.name)}
-                        className="p-2 rounded-full text-gray-500 hover:bg-red-900/50 hover:text-red-400 transition-colors flex-shrink-0"
-                        aria-label={`Remove ${herb.name} from favorites`}
-                      >
-                        <TrashIcon className="w-5 h-5" />
-                      </button>
-                    </Tooltip>
-                  </li>
-                ))}
-              </ul>
+                ))
             )}
           </div>
+
+          {favorites.length > 0 && (
+            <footer className="p-4 border-t border-gray-200 dark:border-gray-700 flex justify-between items-center">
+              <Tooltip text="Export Grimoire as PDF">
+                  <button onClick={onExportFavorites} className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400 hover:text-black dark:hover:text-white">
+                      <ExportIcon className="w-5 h-5" /> Export
+                  </button>
+              </Tooltip>
+              <button onClick={onClearFavorites} className="text-sm text-red-500 hover:text-red-700 dark:hover:text-red-400 font-semibold">
+                Clear All
+              </button>
+            </footer>
+          )}
         </div>
-      </aside>
+      </div>
     </>
   );
 };
