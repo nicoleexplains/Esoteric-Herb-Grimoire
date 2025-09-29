@@ -67,7 +67,7 @@ export async function generateHerbImage(herbName: string): Promise<string> {
     try {
         const response = await ai.models.generateImages({
             model: 'imagen-4.0-generate-001',
-            prompt: `A mystical, artistic digital painting of the ${herbName} plant. The plant has a subtle, magical glow. The background is dark and esoteric, with faint, glowing alchemical symbols. Fantasy art style, high detail, cinematic lighting.`,
+            prompt: `An esoteric, mystical digital painting of the ${herbName} plant, glowing with magical energy. The background is dark and atmospheric, filled with faint, glowing alchemical symbols, sacred geometry patterns, and constellations. Ethereal wisps of colorful smoke and glowing particles drift around the plant, hinting at its elemental power. Fantasy art style, highly detailed, cinematic lighting.`,
             config: {
                 numberOfImages: 1,
                 outputMimeType: 'image/jpeg',

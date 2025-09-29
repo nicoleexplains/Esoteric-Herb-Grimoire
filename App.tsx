@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { getHerbInfo, generateHerbImage } from './services/geminiService';
-import { generatePdfReport } from './services/reportService';
-import type { HerbInfo, FavoriteHerb } from './types';
+import { generatePdfReport, generateSingleHerbPdf } from './services/reportService';
+import type { HerbInfo, FavoriteHerb, Spell } from './types';
 import SearchBar from './components/SearchBar';
 import HerbDisplay from './components/HerbDisplay';
 import Loader from './components/Loader';
@@ -10,9 +10,14 @@ import FavoritesPanel from './components/FavoritesPanel';
 import AboutPage from './components/AboutPage';
 import SearchHistory from './components/SearchHistory';
 import ThemeToggle from './components/ThemeToggle';
+import ManualAddHerbForm from './components/ManualAddHerbForm';
 import { BookIcon } from './components/icons/BookIcon';
 import { InfoIcon } from './components/icons/InfoIcon';
+import { SpellbookIcon } from './components/icons/SpellbookIcon';
+import SpellbookPanel from './components/SpellbookPanel';
 import Tooltip from './components/Tooltip';
+
+export type Theme = 'light' | 'dark' | 'system';
 
 function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -20,6 +25,7 @@ function App() {
   const [herbData, setHerbData] = useState<HerbInfo | null>(null);
   const [herbImage, setHerbImage] = useState<string | null>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isSingleExporting, setIsSingleExporting] = useState(false);
 
   const [favorites, setFavorites] = useState<FavoriteHerb[]>(() => {
     try {
@@ -28,6 +34,16 @@ function App() {
     } catch (e) {
         console.error("Failed to parse favorites from localStorage", e);
         return [];
+    }
+  });
+
+  const [spells, setSpells] = useState<Spell[]>(() => {
+    try {
+      const saved = localStorage.getItem('grimoire-spells');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      console.error("Failed to parse spells from localStorage", e);
+      return [];
     }
   });
 
@@ -52,18 +68,32 @@ function App() {
   });
 
   const [isFavoritesPanelOpen, setIsFavoritesPanelOpen] = useState<boolean>(false);
+  const [isSpellbookOpen, setIsSpellbookOpen] = useState<boolean>(false);
   const [isAboutPageOpen, setIsAboutPageOpen] = useState<boolean>(false);
+  const [isManualAddOpen, setIsManualAddOpen] = useState<boolean>(false);
 
-  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
-    if (typeof window !== 'undefined' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
-      return 'dark';
+  const [theme, setTheme] = useState<Theme>(() => {
+    const savedTheme = localStorage.getItem('grimoire-theme');
+    if (savedTheme === 'light' || savedTheme === 'dark' || savedTheme === 'system') {
+      return savedTheme;
     }
-    return 'light';
+    return 'system';
+  });
+
+  const [effectiveTheme, setEffectiveTheme] = useState<'light' | 'dark'>(() => {
+    const savedTheme = localStorage.getItem('grimoire-theme') || 'system';
+    if (savedTheme === 'light') return 'light';
+    if (savedTheme === 'dark') return 'dark';
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   });
 
   useEffect(() => {
     localStorage.setItem('grimoire-favorites', JSON.stringify(favorites));
   }, [favorites]);
+
+  useEffect(() => {
+    localStorage.setItem('grimoire-spells', JSON.stringify(spells));
+  }, [spells]);
   
   useEffect(() => {
     localStorage.setItem('grimoire-categories', JSON.stringify(categories));
@@ -74,16 +104,31 @@ function App() {
   }, [searchHistory]);
 
   useEffect(() => {
-    if (theme === 'dark') {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
+    localStorage.setItem('grimoire-theme', theme);
+    const root = window.document.documentElement;
+
+    if (theme === 'light') {
+      root.classList.remove('dark');
+      setEffectiveTheme('light');
+    } else if (theme === 'dark') {
+      root.classList.add('dark');
+      setEffectiveTheme('dark');
+    } else { // theme is 'system'
+      const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+      const handleChange = () => {
+        if (mediaQuery.matches) {
+          root.classList.add('dark');
+          setEffectiveTheme('dark');
+        } else {
+          root.classList.remove('dark');
+          setEffectiveTheme('light');
+        }
+      };
+      handleChange(); // Apply initial system theme
+      mediaQuery.addEventListener('change', handleChange);
+      return () => mediaQuery.removeEventListener('change', handleChange);
     }
   }, [theme]);
-
-  const toggleTheme = () => {
-    setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
-  };
 
   const updateSearchHistory = (query: string) => {
     setSearchHistory(prev => {
@@ -110,6 +155,46 @@ function App() {
       setHerbImage(imageUrl);
     } catch (e: any) {
       setError(e.message || 'An unknown error occurred.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+  
+  const handleDownloadImage = (image: string, name: string) => {
+    if (!image) return;
+    const link = document.createElement('a');
+    link.href = image;
+    link.download = `${name.replace(/\s+/g, '_').toLowerCase()}.jpeg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleManualAddHerb = async (newHerbData: HerbInfo) => {
+    setIsManualAddOpen(false);
+    setIsLoading(true);
+    setError(null);
+    setHerbData(null);
+    setHerbImage(null);
+    
+    try {
+      if (favorites.some(fav => fav.name.toLowerCase() === newHerbData.name.toLowerCase())) {
+        throw new Error(`The herb "${newHerbData.name}" already exists in your Grimoire.`);
+      }
+      
+      const imageUrl = await generateHerbImage(newHerbData.name);
+      
+      const newFavorite: FavoriteHerb = {
+        ...newHerbData,
+        image: imageUrl,
+        category: undefined,
+      };
+      
+      setFavorites(prev => [newFavorite, ...prev]);
+      setIsFavoritesPanelOpen(true);
+
+    } catch (e: any) {
+      setError(e.message || 'An unknown error occurred while adding the herb.');
     } finally {
       setIsLoading(false);
     }
@@ -162,6 +247,23 @@ function App() {
     }
   };
 
+  const handleExportSingleHerb = async () => {
+    if (!herbData || !herbImage || isSingleExporting) return;
+    setIsSingleExporting(true);
+    try {
+      const herbToExport: FavoriteHerb = { ...herbData, image: herbImage };
+      const associatedSpellsForHerb = spells.filter(spell => 
+        spell.ingredients.some(ing => ing.toLowerCase() === herbData.name.toLowerCase())
+      );
+      await generateSingleHerbPdf(herbToExport, associatedSpellsForHerb);
+    } catch (err) {
+      console.error("Failed to generate single herb PDF:", err);
+      alert("There was an error generating the PDF. Please try again.");
+    } finally {
+      setIsSingleExporting(false);
+    }
+  };
+
   const handleClearHistory = () => {
     setSearchHistory([]);
   };
@@ -196,6 +298,21 @@ function App() {
       setFavorites(prev => prev.map(f => f.name === herbName ? { ...f, category: category === 'none' ? undefined : category } : f));
   };
 
+  const handleAddSpell = (spell: Omit<Spell, 'id'>) => {
+    const newSpell = { ...spell, id: Date.now().toString() };
+    setSpells(prev => [newSpell, ...prev]);
+  };
+
+  const handleUpdateSpell = (updatedSpell: Spell) => {
+    setSpells(prev => prev.map(s => s.id === updatedSpell.id ? updatedSpell : s));
+  };
+
+  const handleDeleteSpell = (spellId: string) => {
+    if (window.confirm("Are you sure you want to delete this spell?")) {
+      setSpells(prev => prev.filter(s => s.id !== spellId));
+    }
+  };
+
   const handleGoHome = () => {
     setHerbData(null);
     setHerbImage(null);
@@ -221,6 +338,11 @@ function App() {
             </Tooltip>
         </div>
         <div className="w-full flex items-center justify-end gap-2">
+            <Tooltip text="My Spellbook">
+                <button onClick={() => setIsSpellbookOpen(true)} className="p-3 rounded-full bg-black/10 dark:bg-gray-800/50 hover:bg-black/20 dark:hover:bg-gray-700 text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 transition-colors" aria-label="Open spellbook">
+                    <SpellbookIcon className="w-7 h-7" />
+                </button>
+            </Tooltip>
             <Tooltip text="My Grimoire">
                 <button onClick={() => setIsFavoritesPanelOpen(true)} className="p-3 rounded-full bg-black/10 dark:bg-gray-800/50 hover:bg-black/20 dark:hover:bg-gray-700 text-purple-600 dark:text-purple-300 hover:text-purple-700 dark:hover:text-purple-200 transition-colors" aria-label="Open favorites">
                     <BookIcon className="w-7 h-7" />
@@ -231,7 +353,7 @@ function App() {
                     <InfoIcon className="w-7 h-7" />
                 </button>
             </Tooltip>
-            <ThemeToggle theme={theme} toggleTheme={toggleTheme} />
+            <ThemeToggle theme={theme} effectiveTheme={effectiveTheme} setTheme={setTheme} />
         </div>
       </header>
 
@@ -251,7 +373,11 @@ function App() {
                 herbData={herbData} 
                 herbImage={herbImage} 
                 isFavorite={isFavorite}
+                spells={spells}
                 onToggleFavorite={toggleFavorite}
+                onExport={handleExportSingleHerb}
+                isExporting={isSingleExporting}
+                onDownloadImage={handleDownloadImage}
             />
           )}
           {!herbData && !isLoading && !error && <ExampleHerbs onExampleClick={handleSearch} />}
@@ -259,6 +385,15 @@ function App() {
       </main>
 
       <AboutPage isOpen={isAboutPageOpen} onClose={() => setIsAboutPageOpen(false)} />
+      <SpellbookPanel
+        isOpen={isSpellbookOpen}
+        onClose={() => setIsSpellbookOpen(false)}
+        spells={spells}
+        favorites={favorites}
+        onAddSpell={handleAddSpell}
+        onUpdateSpell={handleUpdateSpell}
+        onDeleteSpell={handleDeleteSpell}
+      />
       <FavoritesPanel 
         isOpen={isFavoritesPanelOpen}
         onClose={() => setIsFavoritesPanelOpen(false)}
@@ -272,6 +407,12 @@ function App() {
         onDeleteCategory={handleDeleteCategory}
         onRenameCategory={handleRenameCategory}
         onAssignCategory={handleAssignCategory}
+        onOpenManualAdd={() => setIsManualAddOpen(true)}
+      />
+      <ManualAddHerbForm 
+        isOpen={isManualAddOpen}
+        onClose={() => setIsManualAddOpen(false)}
+        onAddHerb={handleManualAddHerb}
       />
     </div>
   );

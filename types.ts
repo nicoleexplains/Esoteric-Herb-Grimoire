@@ -11,11 +11,18 @@ export interface HerbInfo {
   planetaryAssociation: string;
   deityAssociation?: string[];
   lore: string;
-  usage: string;
+  usage:string;
   herbalOil?: HerbalOilInfo;
 }
 
 export interface FavoriteHerb extends HerbInfo {
   image: string;
   category?: string;
+}
+
+export interface Spell {
+  id: string;
+  name: string;
+  ingredients: string[]; // Herb names
+  instructions: string;
 }

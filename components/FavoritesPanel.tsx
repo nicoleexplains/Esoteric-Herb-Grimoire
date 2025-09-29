@@ -23,6 +23,7 @@ interface FavoritesPanelProps {
   onDeleteCategory: (name: string) => void;
   onRenameCategory: (oldName: string, newName: string) => void;
   onAssignCategory: (herbName: string, category: string) => void;
+  onOpenManualAdd: () => void;
 }
 
 const CategoryHeader: React.FC<{
@@ -83,7 +84,7 @@ const CategoryHeader: React.FC<{
 };
 
 const FavoritesPanel: React.FC<FavoritesPanelProps> = (props) => {
-  const { favorites, categories, isOpen, onClose, onSelectFavorite, onRemoveFavorite, onClearFavorites, onExportFavorites, onAddCategory, onDeleteCategory, onRenameCategory, onAssignCategory } = props;
+  const { favorites, categories, isOpen, onClose, onSelectFavorite, onRemoveFavorite, onClearFavorites, onExportFavorites, onAddCategory, onDeleteCategory, onRenameCategory, onAssignCategory, onOpenManualAdd } = props;
   
   const [newCategory, setNewCategory] = useState('');
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -128,11 +129,18 @@ const FavoritesPanel: React.FC<FavoritesPanelProps> = (props) => {
             <h2 id="favorites-heading" className="text-xl font-bold text-gray-800 dark:text-gray-200 flex items-center gap-2">
               <BookIcon className="w-6 h-6" /> My Grimoire
             </h2>
-            <Tooltip text="Close">
-              <button onClick={onClose} className="p-1 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" aria-label="Close panel">
-                <CloseIcon className="w-6 h-6" />
-              </button>
-            </Tooltip>
+            <div className="flex items-center gap-2">
+              <Tooltip text="Add New Herb">
+                <button onClick={onOpenManualAdd} className="p-1 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" aria-label="Add new herb manually">
+                  <PlusIcon className="w-6 h-6"/>
+                </button>
+              </Tooltip>
+              <Tooltip text="Close">
+                <button onClick={onClose} className="p-1 rounded-full text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700" aria-label="Close panel">
+                  <CloseIcon className="w-6 h-6" />
+                </button>
+              </Tooltip>
+            </div>
           </header>
 
           <div className="p-4 border-b border-gray-200 dark:border-gray-700">

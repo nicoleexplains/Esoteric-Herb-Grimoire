@@ -1,13 +1,18 @@
-import React from 'react';
-import type { HerbInfo } from '../types';
+import React, { useMemo } from 'react';
+import type { HerbInfo, Spell } from '../types';
 import { HeartIcon } from './icons/HeartIcon';
+import { DownloadIcon } from './icons/DownloadIcon';
 import Tooltip from './Tooltip';
 
 interface HerbDisplayProps {
   herbData: HerbInfo;
   herbImage: string;
   isFavorite: boolean;
+  spells: Spell[];
   onToggleFavorite: () => void;
+  onExport: () => void;
+  isExporting: boolean;
+  onDownloadImage: (image: string, name: string) => void;
 }
 
 const InfoSection: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -17,10 +22,31 @@ const InfoSection: React.FC<{ title: string; children: React.ReactNode }> = ({ t
   </div>
 );
 
-const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavorite, onToggleFavorite }) => {
+const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavorite, spells, onToggleFavorite, onExport, isExporting, onDownloadImage }) => {
+  const associatedSpells = useMemo(() => {
+    return spells.filter(spell => spell.ingredients.includes(herbData.name));
+  }, [spells, herbData.name]);
+
   return (
     <div className="relative bg-white/60 dark:bg-gray-800/50 backdrop-blur-sm border border-gray-300 dark:border-gray-700 rounded-xl shadow-2xl shadow-purple-900/20 overflow-hidden">
-      <div className="absolute top-4 right-4 z-10">
+      <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
+        <Tooltip text="Export Page as PDF">
+          <button
+            onClick={onExport}
+            disabled={isExporting}
+            className="p-2 rounded-full bg-black/10 dark:bg-gray-900/50 text-gray-600 dark:text-gray-300 hover:text-purple-500 dark:hover:text-purple-400 transition-all duration-200 transform hover:scale-110 disabled:opacity-50 disabled:cursor-wait"
+            aria-label="Export herb details as PDF"
+          >
+            {isExporting ? (
+              <svg className="animate-spin h-6 w-6 text-purple-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+              </svg>
+            ) : (
+              <DownloadIcon className="w-6 h-6" />
+            )}
+          </button>
+        </Tooltip>
         <Tooltip text={isFavorite ? 'Remove from Grimoire' : 'Add to Grimoire'}>
           <button
             onClick={onToggleFavorite}
@@ -76,13 +102,32 @@ const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavori
             </>
           )}
 
+          {associatedSpells.length > 0 && (
+            <InfoSection title="Associated Spells">
+              <ul className="list-disc list-inside space-y-1">
+                {associatedSpells.map(spell => (
+                  <li key={spell.id}>{spell.name}</li>
+                ))}
+              </ul>
+            </InfoSection>
+          )}
+
         </div>
-        <div className="min-h-[300px] md:min-h-full">
+        <div className="relative group min-h-[300px] md:min-h-full">
             <img 
                 src={herbImage} 
                 alt={`Artistic representation of ${herbData.name}`}
                 className="w-full h-full object-cover"
             />
+             <Tooltip text="Download Image">
+              <button
+                onClick={() => onDownloadImage(herbImage, herbData.name)}
+                className="absolute bottom-4 right-4 z-10 p-2 rounded-full bg-black/50 hover:bg-black/70 text-white opacity-0 group-hover:opacity-100 transition-opacity duration-300 transform hover:scale-110"
+                aria-label="Download image"
+              >
+                <DownloadIcon className="w-6 h-6" />
+              </button>
+            </Tooltip>
         </div>
       </div>
     </div>
