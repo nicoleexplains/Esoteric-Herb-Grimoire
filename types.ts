@@ -8,6 +8,11 @@ export interface HerbalOilInfo {
   usage: string;
 }
 
+export interface ComplementaryEssence {
+  name: string;
+  purpose: string;
+}
+
 export interface HerbInfo {
   name: string;
   scientificName: string;
@@ -19,6 +24,7 @@ export interface HerbInfo {
   usage:string;
   herbalOil?: HerbalOilInfo;
   externalResources?: ExternalResource[];
+  complementaryEssences?: ComplementaryEssence[];
 }
 
 export interface FavoriteHerb extends HerbInfo {

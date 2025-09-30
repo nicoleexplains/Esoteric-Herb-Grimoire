@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { getHerbInfo, generateHerbImage } from './services/geminiService';
 import { generatePdfReport, generateSingleHerbPdf } from './services/reportService';
 import type { HerbInfo, FavoriteHerb, Spell } from './types';
@@ -187,7 +187,6 @@ function App() {
       const newFavorite: FavoriteHerb = {
         ...newHerbData,
         image: imageUrl,
-        category: undefined,
       };
       
       setFavorites(prev => [newFavorite, ...prev]);
@@ -200,7 +199,10 @@ function App() {
     }
   };
 
-  const isFavorite = herbData ? favorites.some(fav => fav.name.toLowerCase() === herbData.name.toLowerCase()) : false;
+  const isFavorite = useMemo(() => {
+    if (!herbData) return false;
+    return favorites.some(fav => fav.name.toLowerCase() === herbData.name.toLowerCase());
+  }, [herbData, favorites]);
 
   const toggleFavorite = () => {
     if (!herbData || !herbImage) return;
@@ -208,13 +210,18 @@ function App() {
     if (isFavorite) {
       setFavorites(prev => prev.filter(fav => fav.name.toLowerCase() !== herbData.name.toLowerCase()));
     } else {
-      setFavorites(prev => [{ ...herbData, image: herbImage, category: undefined }, ...prev]);
+      const newFavorite: FavoriteHerb = {
+        ...herbData,
+        image: herbImage,
+      };
+      setFavorites(prev => [newFavorite, ...prev]);
     }
   };
   
   const handleSelectFavorite = (herb: FavoriteHerb) => {
-      setHerbData(herb);
-      setHerbImage(herb.image);
+      const { image, category, ...baseHerbInfo } = herb;
+      setHerbData(baseHerbInfo);
+      setHerbImage(image);
       setIsFavoritesPanelOpen(false);
       setError(null);
       setIsLoading(false);

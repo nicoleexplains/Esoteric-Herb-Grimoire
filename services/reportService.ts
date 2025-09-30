@@ -89,6 +89,10 @@ const createHerbPageHtml = (herb: FavoriteHerb, pageNumber?: string, associatedS
       .spell-item { border-left: 3px solid #c4b5fd; padding-left: 12px; margin-bottom: 12px; }
       .spell-name { font-family: 'Cinzel', serif; font-weight: 700; font-size: 11pt; color: #4c1d95; }
       .spell-instructions { font-size: 10pt; white-space: pre-wrap; margin-top: 4px; color: #374151; }
+      .essences-list { margin-top: 8px; }
+      .essence-item { border-left: 3px solid #10b981; padding-left: 12px; margin-bottom: 12px; }
+      .essence-name { font-family: 'Cinzel', serif; font-weight: 700; font-size: 11pt; color: #047857; }
+      .essence-purpose { font-size: 10pt; white-space: pre-wrap; margin-top: 4px; color: #374151; }
     `;
 
     const associatedSpellsHtml = (associatedSpells && associatedSpells.length > 0)
@@ -99,6 +103,19 @@ const createHerbPageHtml = (herb: FavoriteHerb, pageNumber?: string, associatedS
           <div class="spell-item">
             <h4 class="spell-name">${spell.name}</h4>
             <p class="spell-instructions">${spell.instructions}</p>
+          </div>
+        `).join('')}
+      </div>
+    ` : '';
+    
+    const complementaryEssencesHtml = (herb.complementaryEssences && herb.complementaryEssences.length > 0)
+    ? `
+      <h3 class="section-title">Complementary Essences</h3>
+      <div class="essences-list">
+        ${herb.complementaryEssences.map(essence => `
+          <div class="essence-item">
+            <h4 class="essence-name">${essence.name}</h4>
+            <p class="essence-purpose">${essence.purpose}</p>
           </div>
         `).join('')}
       </div>
@@ -129,6 +146,8 @@ const createHerbPageHtml = (herb: FavoriteHerb, pageNumber?: string, associatedS
           <h3 class="section-title">Esoteric Oil Usage</h3>
           <p class="text-block">${herb.herbalOil.usage}</p>
         ` : ''}
+        
+        ${complementaryEssencesHtml}
         
         ${associatedSpellsHtml}
       

@@ -103,6 +103,19 @@ const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavori
             </>
           )}
 
+          {herbData.complementaryEssences && herbData.complementaryEssences.length > 0 && (
+            <InfoSection title="Complementary Essences">
+              <div className="space-y-3">
+                {herbData.complementaryEssences.map((essence) => (
+                  <div key={essence.name} className="p-3 bg-green-100/50 dark:bg-green-900/30 border-l-4 border-green-500 dark:border-green-400 rounded-r-lg">
+                    <p className="font-bold text-gray-800 dark:text-gray-200">{essence.name}</p>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{essence.purpose}</p>
+                  </div>
+                ))}
+              </div>
+            </InfoSection>
+          )}
+
           {associatedSpells.length > 0 && (
             <InfoSection title="Associated Spells">
               <ul className="list-disc list-inside space-y-1">
