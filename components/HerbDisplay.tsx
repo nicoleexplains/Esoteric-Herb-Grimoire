@@ -2,6 +2,7 @@ import React, { useMemo } from 'react';
 import type { HerbInfo, Spell } from '../types';
 import { HeartIcon } from './icons/HeartIcon';
 import { DownloadIcon } from './icons/DownloadIcon';
+import { ExternalLinkIcon } from './icons/ExternalLinkIcon';
 import Tooltip from './Tooltip';
 
 interface HerbDisplayProps {
@@ -24,7 +25,7 @@ const InfoSection: React.FC<{ title: string; children: React.ReactNode }> = ({ t
 
 const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavorite, spells, onToggleFavorite, onExport, isExporting, onDownloadImage }) => {
   const associatedSpells = useMemo(() => {
-    return spells.filter(spell => spell.ingredients.includes(herbData.name));
+    return spells.filter(spell => spell.ingredients.some(ing => ing.toLowerCase() === herbData.name.toLowerCase()));
   }, [spells, herbData.name]);
 
   return (
@@ -107,6 +108,26 @@ const HerbDisplay: React.FC<HerbDisplayProps> = ({ herbData, herbImage, isFavori
               <ul className="list-disc list-inside space-y-1">
                 {associatedSpells.map(spell => (
                   <li key={spell.id}>{spell.name}</li>
+                ))}
+              </ul>
+            </InfoSection>
+          )}
+
+          {herbData.externalResources && herbData.externalResources.length > 0 && (
+            <InfoSection title="Further Research">
+              <ul className="space-y-2">
+                {herbData.externalResources.map((resource) => (
+                  <li key={resource.url}>
+                    <a
+                      href={resource.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-2 text-purple-600 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-100 hover:underline"
+                    >
+                      {resource.source}
+                      <ExternalLinkIcon className="w-4 h-4" />
+                    </a>
+                  </li>
                 ))}
               </ul>
             </InfoSection>

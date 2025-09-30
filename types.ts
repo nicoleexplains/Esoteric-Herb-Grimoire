@@ -1,3 +1,8 @@
+export interface ExternalResource {
+  source: string;
+  url: string;
+}
+
 export interface HerbalOilInfo {
   lore: string;
   usage: string;
@@ -13,6 +18,7 @@ export interface HerbInfo {
   lore: string;
   usage:string;
   herbalOil?: HerbalOilInfo;
+  externalResources?: ExternalResource[];
 }
 
 export interface FavoriteHerb extends HerbInfo {
